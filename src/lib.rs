@@ -3,40 +3,43 @@
 
 use core::f32;
 
-pub const LEFT:  u8 = 0b1000_0000;
-pub const UP:    u8 = 0b0100_0000;
-pub const DOWN:  u8 = 0b0010_0000;
-pub const RIGHT: u8 = 0b0001_0000;
+pub mod consts {
+    pub const LEFT:  u8 = 0b1000_0000;
+    pub const UP:    u8 = 0b0100_0000;
+    pub const DOWN:  u8 = 0b0010_0000;
+    pub const RIGHT: u8 = 0b0001_0000;
 
 
-pub const JUMP:  u8 = 0b0000_0010;
-pub const DASH:  u8 = 0b0000_0001;
+    pub const DASH:  u8 = 0b0000_0010;
+    pub const JUMP:  u8 = 0b0000_0001;
 
-pub const HAIR_COUNT: usize = 5;
-pub const JUMP_GRACE_TIME: u8 = 6;
-pub const JUMP_BUFFER_TIME: u8 = 4;
-pub const PLAYER_HITBOX: Hitbox = Hitbox { x: 1., y: 3., w: 6., h: 5. };
+    pub const HAIR_COUNT: usize = 5;
+    pub const JUMP_GRACE_TIME: u8 = 6;
+    pub const JUMP_BUFFER_TIME: u8 = 4;
+    pub const PLAYER_HITBOX: crate::Hitbox = crate::Hitbox { x: 1, y: 3, w: 6, h: 5 };
 
-pub const MAX_SPEED: f32 = 1.;
-pub const WALL_JUMP_SPEED: f32 = 2.;
-pub const GROUND_ACCEL: f32 = 0.6;
-pub const AIR_ACCEL: f32 = 0.6;
-pub const DECEL: f32 = 0.15;
-pub const MAX_FALL: f32 = 2.;
-pub const MAX_FALL_SLIDE: f32 = 0.6;
-pub const GRAVITY: f32 = 0.21;
-pub const HALF_GRAVITY_THRESHOLD: f32 = 0.15;
-pub const JUMP_SPEED: f32 = -2.;
+    pub const MAX_SPEED: f32 = 1.;
+    pub const WALL_JUMP_SPEED: f32 = 2.;
+    pub const GROUND_ACCEL: f32 = 0.6;
+    pub const AIR_ACCEL: f32 = 0.6;
+    pub const DECEL: f32 = 0.15;
+    pub const MAX_FALL: f32 = 2.;
+    pub const MAX_FALL_SLIDE: f32 = 0.6;
+    pub const GRAVITY: f32 = 0.21;
+    pub const HALF_GRAVITY_THRESHOLD: f32 = 0.15;
+    pub const JUMP_SPEED: f32 = -2.;
 
-pub const DASH_SPEED: f32 = 5.;
-pub const DASH_TIME: u8 = 4;
-pub const DASH_EFFECT_TIME: u8 = 10;
-pub const DASH_TARGET: f32 = 2.;
-pub const DASH_ACCEL: f32 = 1.5;
-pub const DASH_UPWARDS_MUL: f32 = 0.75;
+    pub const DASH_SPEED: f32 = 5.;
+    pub const DASH_TIME: u8 = 4;
+    pub const DASH_EFFECT_TIME: u8 = 10;
+    pub const DASH_TARGET: f32 = 2.;
+    pub const DASH_ACCEL: f32 = 1.5;
+    pub const DASH_UPWARDS_MUL: f32 = 0.75;
 
-pub const WALL_JUMP_CHECK_DISTANCE: f32 = 3.;
+    pub const WALL_JUMP_CHECK_DISTANCE: i32 = 3;
+}
 
+use consts::*;
 
 macro_rules! pressed {
     ($input_flags: ident [ $flag: ident ]) => {
@@ -45,10 +48,16 @@ macro_rules! pressed {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Default)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Default)]
 pub struct Vector2 {
     pub x: f32,
     pub y: f32
+}
+
+impl core::fmt::Debug for Vector2 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Vector2 {{ x: {}, y: {} }}", self.x, self.y)
+    }
 }
 
 impl Vector2 {
@@ -58,27 +67,35 @@ impl Vector2 {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Default)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Default)]
 pub struct Hitbox {
-    pub x: f32,
-    pub y: f32,
-    pub w: f32,
-    pub h: f32
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32
+}
+
+impl core::fmt::Debug for Hitbox {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Hitbox {{ x: {}, y: {}, w: {}, h: {} }}", self.x, self.y, self.w, self.h)
+    }
 }
 
 
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Maddy {
-    pub solid_callback: Option<extern "C" fn(*mut Self, Hitbox, Vector2) -> bool>,
+    /// Callback for collision. Takes the X and Y to check, as well as the X and Y of the direction that's being checked, and returns a boolean.
+    pub solid_callback: Option<extern "C" fn(*mut Self, i32, i32, i32, i32) -> bool>,
     pub audio_callback: Option<extern "C" fn(u8)>,
     pub hitbox: Hitbox,
     pub hair: [Vector2; 5],
     pub dash_target: Vector2,
     pub dash_accel: Vector2,
     pub speed: Vector2,
-    pub x: f32,
-    pub y: f32,
+    pub x: i32,
+    pub y: i32,
+    pub rem: Vector2,
     pub jump_buffer: u8,
     pub jump_grace: u8,
     pub dashes: u8,
@@ -106,8 +123,9 @@ impl Maddy {
         Self {
             solid_callback: None,
             audio_callback: None,
-            x: 0.,
-            y: 0.,
+            x: 0,
+            y: 0,
+            rem: Vector2::new(0., 0.),
             speed: Vector2::new(0., 0.),
             jump_grace: 0,
             dashes: 0,
@@ -134,19 +152,19 @@ impl Maddy {
         }
     }
 
-    fn is_solid(&mut self, dir_x: f32, dir_y: f32) -> bool {
+    fn is_solid(&mut self, dir_x: i32, dir_y: i32) -> bool {
         self.solid_callback.map_or(
             false,
-            |callback| callback(
-                self,
-                Hitbox { 
-                    x: self.hitbox.x + self.x, 
-                    y: self.hitbox.y + self.y,
-                    w: self.hitbox.w,
-                    h: self.hitbox.h
-                },
-                Vector2 { x: dir_x, y: dir_y }
-            )
+            |callback| {
+                for i in self.x + dir_x + self.hitbox.x .. self.x + self.hitbox.w + dir_x + self.hitbox.x {
+                    for j in self.y + dir_y + self.hitbox.y .. self.y + self.hitbox.h + dir_y + self.hitbox.y {
+                        if callback(self, i, j, dir_x, dir_y) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
         )
     }
 
@@ -160,7 +178,7 @@ impl Maddy {
             else if pressed!(keys[DOWN]) { 1 }
             else { 0 };
 
-        let on_ground = self.is_solid(0., 1.);
+        let on_ground = self.is_solid(0, 1);
     
         let jump = pressed!(keys[JUMP]) && !self.jump_last_tick;
         self.jump_last_tick = pressed!(keys[JUMP]);
@@ -212,7 +230,7 @@ impl Maddy {
                 if libm::fabsf(self.speed.y) <= HALF_GRAVITY_THRESHOLD { 0.5 }
                 else { 1.0 };
             
-            let max_fall = if input_x != 0 && self.is_solid(input_x as f32, 0.)
+            let max_fall = if input_x != 0 && self.is_solid(input_x, 0)
                 {MAX_FALL_SLIDE}
                 else {MAX_FALL};
 
@@ -232,9 +250,9 @@ impl Maddy {
                 } else {
                     // wall jump
                     let wall_direction = 
-                        if self.is_solid(-WALL_JUMP_CHECK_DISTANCE, 0.) {
+                        if self.is_solid(-WALL_JUMP_CHECK_DISTANCE, 0) {
                             -1. // Left
-                        } else if self.is_solid(WALL_JUMP_CHECK_DISTANCE, 0.) {
+                        } else if self.is_solid(WALL_JUMP_CHECK_DISTANCE, 0) {
                             1. // Right
                         } else { 0. };
                     if wall_direction != 0. {
@@ -256,7 +274,7 @@ impl Maddy {
 
                     // Manual vector normalization
                     self.speed = match (input_x == 0, input_y == 0) {
-                        (true, true) =>
+                        (false, false) =>
                             Vector2::new(
                                 // Multiply each direction by sqrt(2) / 2 to normalize
                                 input_x as f32 * DASH_SPEED * f32::consts::SQRT_2 * 0.5,
@@ -266,14 +284,14 @@ impl Maddy {
                             Vector2::new(0., input_y as f32 * DASH_SPEED),
                         (false, true) => 
                             Vector2::new(input_x as f32 * DASH_SPEED, 0.),
-                        (false, false) =>
+                        (true, true) =>
                             // Default to facing direction
                             Vector2::new(self.flip_x as i32 as f32 * DASH_SPEED, 0.)
                     };
 
                     self.play(3);
-                    self.dash_target.x = libm::copysignf(DASH_TARGET, self.speed.x);
-                    self.dash_target.y = libm::copysignf(DASH_TARGET, self.speed.y);
+                    self.dash_target.x = if self.speed.x != 0. { libm::copysignf(DASH_TARGET, self.speed.x) } else { 0. };
+                    self.dash_target.y = if self.speed.y != 0. { libm::copysignf(DASH_TARGET, self.speed.y) } else { 0. };
                     self.dash_accel.x = DASH_ACCEL;
                     self.dash_accel.y = DASH_ACCEL;
 
@@ -295,10 +313,10 @@ impl Maddy {
             }
 
             // animation
-            self.sprite_offset = self.sprite_offset + 1;
+            self.sprite_offset = (self.sprite_offset + 1) % 16;
             self.sprite = if !on_ground {
                 // wall-pushing check
-                if self.is_solid(input_x as f32, 0.)
+                if self.is_solid(input_x, 0)
                     { 5 }
                     else { 3 }
             } else if pressed!(keys[DOWN]) {
@@ -308,21 +326,49 @@ impl Maddy {
             } else if self.speed.x == 0. || input_x == 0 {
                 1
             } else {
-                1 + (self.sprite_offset / 4) % 4
+                1 + self.sprite_offset / 4
             }
         }
 
         self.was_on_ground = on_ground;
 
+        // update position
+
+        self.rem.x += self.speed.x;
+        let move_amount_x = libm::floorf(self.rem.x + 0.5) as i32;
+        self.rem.x -= move_amount_x as f32;
+        let step_x = move_amount_x.signum();
+        for _ in 0..(move_amount_x as i32).abs() {
+            if !self.is_solid(step_x, 0) {
+                self.x += step_x;
+            } else {
+                self.speed.x = 0.;
+                self.rem.x = 0.;
+                break;
+            }
+        }
+
+        self.rem.y += self.speed.y;
+        let move_amount_y = libm::floorf(self.rem.y + 0.5) as i32;
+        self.rem.y -= move_amount_y as f32;
+        let step_y = move_amount_y.signum();
+        for _ in 0..(move_amount_y as i32).abs() {
+            if !self.is_solid(0, step_y) {
+                self.y += step_y;
+            } else {
+                self.speed.y = 0.;
+                self.rem.y = 0.;
+                break;
+            }
+        }
 
         // update hair
-
         let facing = if self.flip_x { -1. } else { 1. };
         
         // There are so many magic numbers here that I can't decipher, sorry!
         let mut last = Vector2::new(
-            self.x + 4. - libm::copysignf(2., facing),
-            self.y + if pressed!(keys[DOWN]) { 4. } else { 3. }
+            self.x as f32 + 4. - libm::copysignf(2., facing),
+            self.y as f32 + if pressed!(keys[DOWN]) { 4. } else { 3. }
         );
 
         for node in self.hair.iter_mut() {
@@ -331,11 +377,5 @@ impl Maddy {
             node.y += (last.y + 0.5 - node.y) / 1.5;
             last = *node;
         }
-    }
-}
-
-impl Default for Maddy {
-    fn default() -> Self {
-        Self::new()
     }
 }

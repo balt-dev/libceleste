@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 libm = "0.2"
+
+macroquad = "0.4"
