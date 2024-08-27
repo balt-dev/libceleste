@@ -38,7 +38,7 @@ pub mod consts {
 
     pub const WALL_JUMP_CHECK_DISTANCE: i32 = 3;
 
-    pub const HAIR_EASING_FACTOR: f32 = 1.5;
+    pub const HAIR_EASING_FACTOR: f32 = 1.1;
     pub const FPS: f32 = 30.;
 }
 
