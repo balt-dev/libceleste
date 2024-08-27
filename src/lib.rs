@@ -14,8 +14,8 @@ pub mod consts {
     pub const JUMP:  u8 = 0b0000_0001;
 
     pub const HAIR_COUNT: usize = 5;
-    pub const JUMP_GRACE_TIME: u8 = 6;
-    pub const JUMP_BUFFER_TIME: u8 = 4;
+    pub const JUMP_GRACE_TIME: f32 = 6.;
+    pub const JUMP_BUFFER_TIME: f32 = 4.;
     pub const PLAYER_HITBOX: crate::Hitbox = crate::Hitbox { x: 1, y: 3, w: 6, h: 5 };
 
     pub const MAX_SPEED: f32 = 1.;
@@ -30,13 +30,16 @@ pub mod consts {
     pub const JUMP_SPEED: f32 = -2.;
 
     pub const DASH_SPEED: f32 = 5.;
-    pub const DASH_TIME: u8 = 4;
-    pub const DASH_EFFECT_TIME: u8 = 10;
+    pub const DASH_TIME: f32 = 4.;
+    pub const DASH_EFFECT_TIME: f32 = 10.;
     pub const DASH_TARGET: f32 = 2.;
     pub const DASH_ACCEL: f32 = 1.5;
     pub const DASH_UPWARDS_MUL: f32 = 0.75;
 
     pub const WALL_JUMP_CHECK_DISTANCE: i32 = 3;
+
+    pub const HAIR_EASING_FACTOR: f32 = 1.5;
+    pub const FPS: f32 = 30.;
 }
 
 use consts::*;
@@ -75,6 +78,12 @@ pub struct Hitbox {
     pub h: i32
 }
 
+impl Hitbox {
+    pub const extern "C" fn new(x: i32, y: i32, w: i32, h: i32) -> Self {
+        Self { x, y, w, h }
+    }
+}
+
 impl core::fmt::Debug for Hitbox {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Hitbox {{ x: {}, y: {}, w: {}, h: {} }}", self.x, self.y, self.w, self.h)
@@ -96,14 +105,14 @@ pub struct Maddy {
     pub x: i32,
     pub y: i32,
     pub rem: Vector2,
-    pub jump_buffer: u8,
-    pub jump_grace: u8,
+    pub jump_buffer: f32,
+    pub jump_grace: f32,
     pub dashes: u8,
     pub max_dashes: u8, 
-    pub dash_time: u8,
-    pub dash_effect_time: u8,
+    pub dash_time: f32,
+    pub dash_effect_time: f32,
     pub sprite: u8,
-    pub sprite_offset: u8,
+    pub sprite_offset: f32,
     pub was_on_ground: bool,
     pub flip_x: bool,
     pub jump_last_tick: bool,
@@ -127,20 +136,20 @@ impl Maddy {
             y: 0,
             rem: Vector2::new(0., 0.),
             speed: Vector2::new(0., 0.),
-            jump_grace: 0,
+            jump_grace: 0.,
             dashes: 0,
-            dash_time: 0,
-            dash_effect_time: 0,
+            dash_time: 0.,
+            dash_effect_time: 0.,
             dash_target: Vector2::new(0., 0.),
             dash_accel: Vector2::new(0., 0.),
             hitbox: PLAYER_HITBOX,
             sprite: 0,
-            sprite_offset: 0,
+            sprite_offset: 0.,
             was_on_ground: false,
             flip_x: false,
             max_dashes: 1,
             hair: [Vector2::new(0., 0.); HAIR_COUNT],
-            jump_buffer: 0,
+            jump_buffer: 0.,
             jump_last_tick: false,
             dash_last_tick: false
         }
@@ -168,7 +177,9 @@ impl Maddy {
         )
     }
 
-    pub extern "C" fn tick(&mut self, keys: u8) {
+    pub extern "C" fn tick(&mut self, keys: u8, delta_time: f32) {
+        let delta_ticks = delta_time * FPS;
+
         let input_x = 
             if pressed!(keys[RIGHT]) { 1 }
             else if pressed!(keys[LEFT]) { -1 }
@@ -185,8 +196,8 @@ impl Maddy {
 
         if jump {
             self.jump_buffer = JUMP_BUFFER_TIME;
-        } else if self.jump_buffer > 0 {
-            self.jump_buffer -= 1;
+        } else if self.jump_buffer > 0. {
+            self.jump_buffer -= delta_ticks;
         }
 
         let dash = pressed!(keys[DASH]) && !self.dash_last_tick;
@@ -198,28 +209,28 @@ impl Maddy {
                 self.play(54);
                 self.dashes = self.max_dashes;
             }
-        } else if self.jump_grace > 0 {
-            self.jump_grace -= 1;
+        } else if self.jump_grace > 0. {
+            self.jump_grace -= delta_ticks;
         }
 
-        if self.dash_effect_time > 0 {
-            self.dash_effect_time -= 1;
+        if self.dash_effect_time > 0. {
+            self.dash_effect_time -= delta_ticks;
         }
 
-        if self.dash_time > 0 {
+        if self.dash_time > 0. {
             // dash state
 
-            self.dash_time -= 1;
-            self.speed.x = approach(self.speed.x, self.dash_target.x, self.dash_accel.x);
-            self.speed.y = approach(self.speed.y, self.dash_target.y, self.dash_accel.y);
+            self.dash_time -= delta_ticks;
+            self.speed.x = approach(self.speed.x, self.dash_target.x, self.dash_accel.x * delta_ticks);
+            self.speed.y = approach(self.speed.y, self.dash_target.y, self.dash_accel.y * delta_ticks);
         } else {
             // normal state
 
             let accel = if on_ground { GROUND_ACCEL } else { AIR_ACCEL };
             self.speed.x = if libm::fabsf(self.speed.x) > MAX_SPEED {
-                approach(self.speed.x, libm::copysignf(MAX_SPEED, self.speed.x), DECEL)
+                approach(self.speed.x, libm::copysignf(MAX_SPEED, self.speed.x), DECEL * delta_ticks)
             } else {
-                approach(self.speed.x, input_x as f32 * MAX_SPEED, accel)
+                approach(self.speed.x, input_x as f32 * MAX_SPEED, accel * delta_ticks)
             };
 
             if self.speed.x != 0.0 {
@@ -236,16 +247,16 @@ impl Maddy {
 
             if !on_ground {
                 // gravity
-                self.speed.y = approach(self.speed.y, max_fall, gravity);
+                self.speed.y = approach(self.speed.y, max_fall, gravity * delta_ticks);
             }
 
             // jumping
-            if self.jump_buffer > 0 {
-                if self.jump_grace > 0 {
+            if self.jump_buffer > 0. {
+                if self.jump_grace > 0. {
                     // jump normally
                     self.play(1);
-                    self.jump_buffer = 0;
-                    self.jump_grace = 0;
+                    self.jump_buffer = 0.;
+                    self.jump_grace = 0.;
                     self.speed.y = JUMP_SPEED;
                 } else {
                     // wall jump
@@ -257,7 +268,7 @@ impl Maddy {
                         } else { 0. };
                     if wall_direction != 0. {
                         self.play(2);
-                        self.jump_buffer = 0;
+                        self.jump_buffer = 0.;
                         self.speed.y = JUMP_SPEED;
                         self.speed.x = -wall_direction * WALL_JUMP_SPEED;
                     }
@@ -269,7 +280,7 @@ impl Maddy {
                 if self.dashes > 0 {
                     self.dashes -= 1;
                     self.dash_time = DASH_TIME;
-                    self.dash_effect_time = 10;
+                    self.dash_effect_time = DASH_EFFECT_TIME;
 
 
                     // Manual vector normalization
@@ -313,7 +324,7 @@ impl Maddy {
             }
 
             // animation
-            self.sprite_offset = (self.sprite_offset + 1) % 16;
+            self.sprite_offset = (self.sprite_offset + delta_ticks) % 16.;
             self.sprite = if !on_ground {
                 // wall-pushing check
                 if self.is_solid(input_x, 0)
@@ -326,7 +337,7 @@ impl Maddy {
             } else if self.speed.x == 0. || input_x == 0 {
                 1
             } else {
-                1 + self.sprite_offset / 4
+                1 + (self.sprite_offset / 4.) as u8
             }
         }
 
@@ -334,7 +345,10 @@ impl Maddy {
 
         // update position
 
-        self.rem.x += self.speed.x;
+        let speed_x = self.speed.x * delta_ticks;
+        let speed_y = self.speed.y * delta_ticks;
+
+        self.rem.x += speed_x;
         let move_amount_x = libm::floorf(self.rem.x + 0.5) as i32;
         self.rem.x -= move_amount_x as f32;
         let step_x = move_amount_x.signum();
@@ -348,7 +362,7 @@ impl Maddy {
             }
         }
 
-        self.rem.y += self.speed.y;
+        self.rem.y += speed_y;
         let move_amount_y = libm::floorf(self.rem.y + 0.5) as i32;
         self.rem.y -= move_amount_y as f32;
         let step_y = move_amount_y.signum();
@@ -372,9 +386,19 @@ impl Maddy {
         );
 
         for node in self.hair.iter_mut() {
-            // I think this is supposed to be an easing thing? 
-            node.x += (last.x - node.x) / 1.5;
-            node.y += (last.y + 0.5 - node.y) / 1.5;
+            // Okay, so this is a problem.
+            //
+            // The generalization of the easing function for
+            // "value += (target - value) / factor"
+            // is
+            // "value += (target - value) / (1 - (1 - factor) ^ delta_time)",
+            // which is all fine and good, until your factor is greater than 1, which ours is.
+            // 
+            // I ended up replacing this with a different, more continuous easing function,
+            // as it's only visual anyways.
+
+            node.x += (last.x - node.x) / HAIR_EASING_FACTOR * delta_ticks;
+            node.y += (last.y + 0.5 - node.y) / HAIR_EASING_FACTOR * delta_ticks;
             last = *node;
         }
     }

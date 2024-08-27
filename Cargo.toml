@@ -6,4 +6,8 @@ edition = "2021"
 [dependencies]
 libm = "0.2"
 
+[dev-dependencies]
 macroquad = "0.4"
+
+[workspace]
+members = ["examples/*"]
