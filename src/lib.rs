@@ -64,8 +64,7 @@ impl core::fmt::Debug for Vector2 {
 }
 
 impl Vector2 {
-    #[no_mangle]
-    pub const extern "C" fn new(x: f32, y: f32) -> Self {
+    pub const fn new(x: f32, y: f32) -> Self {
         Vector2 { x, y }
     }
 }
@@ -80,8 +79,7 @@ pub struct Hitbox {
 }
 
 impl Hitbox {
-    #[no_mangle]
-    pub const extern "C" fn new(x: i32, y: i32, w: i32, h: i32) -> Self {
+    pub const fn new(x: i32, y: i32, w: i32, h: i32) -> Self {
         Self { x, y, w, h }
     }
 }
@@ -131,7 +129,7 @@ fn approach(value: f32, target: f32, amount: f32) -> f32 {
 
 impl Maddy {
     #[no_mangle]
-    pub const extern "C" fn new() -> Self {
+    pub const extern "C" fn init_madeline() -> Self {
         Self {
             solid_callback: None,
             audio_callback: None,
