@@ -9,7 +9,7 @@ pub mod consts {
     pub const DOWN:  u8 = 0b0010_0000;
     pub const RIGHT: u8 = 0b0001_0000;
 
-
+    pub const GRAB:  u8 = 0b0000_0100;
     pub const DASH:  u8 = 0b0000_0010;
     pub const JUMP:  u8 = 0b0000_0001;
 
@@ -40,6 +40,13 @@ pub mod consts {
 
     pub const HAIR_EASING_FACTOR: f32 = 1.5;
     pub const FPS: f32 = 30.;
+
+    pub const SUPER_MULT: f32 = 1.5;
+    pub const SUPER_JUMP_SPEED: f32 = -2.3;
+    pub const WALL_BOUNCE_SPEED_X: f32 = 1.8;
+    pub const WALL_BOUNCE_SPEED_Y: f32 = -2.4;
+
+    pub const MAX_DASHES: u8 = 1;
 }
 
 use consts::*;
@@ -147,7 +154,7 @@ impl Maddy {
             sprite_offset: 0.,
             was_on_ground: false,
             flip_x: false,
-            max_dashes: 1,
+            max_dashes: MAX_DASHES,
             hair: [Vector2::new(0., 0.); HAIR_COUNT],
             jump_buffer: 0.,
             jump_last_tick: false,
@@ -217,7 +224,53 @@ impl Maddy {
             self.dash_effect_time -= delta_ticks;
         }
 
-        if self.dash_time > 0. {
+        
+        // wall jump detection
+        let wall_direction = 
+            if self.is_solid(-WALL_JUMP_CHECK_DISTANCE, 0) {
+                -1. // Left
+            } else if self.is_solid(WALL_JUMP_CHECK_DISTANCE, 0) {
+                1. // Right
+            } else { 0. };
+
+        if
+            self.dash_effect_time > 0.
+            && self.jump_buffer > 0. 
+            && self.jump_grace > 0. 
+            && self.dash_target.y >= 0.
+        {
+            // superdash
+            self.dash_time = 0.;
+            self.jump_buffer = 0.;
+            self.jump_grace = 0.;
+            self.play(1);
+
+            self.speed.x = libm::copysignf(
+                libm::fabsf(self.dash_target.x)
+                    .max(libm::fabsf(self.speed.x)),
+                if input_x == 0 { if self.flip_x { -1. } else { 1. }} else {input_x as f32}
+            ) * SUPER_MULT;
+            self.speed.y = SUPER_JUMP_SPEED; 
+        
+        } else if
+            self.dash_effect_time > 0.
+            && self.jump_buffer > 0. 
+            && self.dash_target.y < 0.
+            && self.dash_target.x == 0.
+            && wall_direction != 0.
+        {
+            // wall bounce
+            self.dash_effect_time = 0.;
+            self.jump_buffer = 0.;
+            self.play(2);
+
+            self.speed.x = libm::copysignf(
+                WALL_BOUNCE_SPEED_X,
+                -wall_direction
+            );
+            self.speed.y = WALL_BOUNCE_SPEED_Y;
+    
+        } else if self.dash_time > 0. {
             // dash state
 
             self.dash_time -= delta_ticks;
@@ -259,13 +312,6 @@ impl Maddy {
                     self.jump_grace = 0.;
                     self.speed.y = JUMP_SPEED;
                 } else {
-                    // wall jump
-                    let wall_direction = 
-                        if self.is_solid(-WALL_JUMP_CHECK_DISTANCE, 0) {
-                            -1. // Left
-                        } else if self.is_solid(WALL_JUMP_CHECK_DISTANCE, 0) {
-                            1. // Right
-                        } else { 0. };
                     if wall_direction != 0. {
                         self.play(2);
                         self.jump_buffer = 0.;
@@ -297,7 +343,7 @@ impl Maddy {
                             Vector2::new(input_x as f32 * DASH_SPEED, 0.),
                         (true, true) =>
                             // Default to facing direction
-                            Vector2::new(self.flip_x as i32 as f32 * DASH_SPEED, 0.)
+                            Vector2::new(if self.flip_x {-1.} else {1.} * DASH_SPEED, 0.)
                     };
 
                     self.play(3);
