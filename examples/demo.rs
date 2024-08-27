@@ -21,19 +21,25 @@ async fn main() {
     maddy.x = 64;
     maddy.y = 104;
     maddy.solid_callback = Some(solid_check);
+    let mut odd_frame = false;
+    let mut keyflags = 0;
 
     loop {
-        let keyflags = 
-            (is_key_down(KeyCode::Left)  as u8) << 7 |
-            (is_key_down(KeyCode::Up)    as u8) << 6 |
-            (is_key_down(KeyCode::Down)  as u8) << 5 |
-            (is_key_down(KeyCode::Right) as u8) << 4 |
-            // No key on bit 3
-            (is_key_down(KeyCode::Z)     as u8) << 2 |
-            (is_key_down(KeyCode::X)     as u8) << 1 |
-            (is_key_down(KeyCode::C)     as u8) << 0;
+        odd_frame = !odd_frame;
         
-        maddy.tick(keyflags);
+        if odd_frame {
+            keyflags = 
+                (is_key_down(KeyCode::Left)  as u8) << 7 |
+                (is_key_down(KeyCode::Up)    as u8) << 6 |
+                (is_key_down(KeyCode::Down)  as u8) << 5 |
+                (is_key_down(KeyCode::Right) as u8) << 4 |
+                // No key on bit 3
+                (is_key_down(KeyCode::Z)     as u8) << 2 |
+                (is_key_down(KeyCode::X)     as u8) << 1 |
+                (is_key_down(KeyCode::C)     as u8) << 0;
+            
+            maddy.tick(keyflags);
+        }
 
         clear_background(WHITE);
         draw_rectangle(32. * SCALE, 96. * SCALE, f32::MAX, 96. * SCALE, BLACK);
