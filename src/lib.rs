@@ -286,7 +286,7 @@ impl Maddy {
                             Vector2::new(input_x as f32 * DASH_SPEED, 0.),
                         (true, true) =>
                             // Default to facing direction
-                            Vector2::new(self.flip_x as i32 as f32 * DASH_SPEED, 0.)
+                            Vector2::new(if self.flip_x {-1.} else {1.} * DASH_SPEED, 0.)
                     };
 
                     self.play(3);
