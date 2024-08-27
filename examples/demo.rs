@@ -17,7 +17,7 @@ const SCALE: f32 = 2.0;
 
 #[macroquad::main("Demo")]
 async fn main() {
-    let mut maddy = libceleste::Maddy::new();
+    let mut maddy = libceleste::Maddy::init_madeline();
     maddy.x = 64;
     maddy.y = 104;
     maddy.solid_callback = Some(solid_check);
