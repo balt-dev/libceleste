@@ -1,4 +1,3 @@
-#![no_std]
 #![crate_type = "cdylib"]
 
 use core::f32;
@@ -453,3 +452,4 @@ impl Maddy {
         }
     }
 }
+
