@@ -11,3 +11,6 @@ macroquad = "0.4"
 
 [workspace]
 members = ["examples/*"]
+
+[lib]
+crate-type = ["cdylib"]
