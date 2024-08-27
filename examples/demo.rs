@@ -36,12 +36,13 @@ async fn main() {
         maddy.tick(keyflags, get_frame_time());
 
         clear_background(WHITE);
-        draw_rectangle(32. * SCALE, 96. * SCALE, f32::MAX, 96. * SCALE, BLACK);
-        draw_rectangle(32. * SCALE, 144. * SCALE, 64. * SCALE, 48. * SCALE, GRAY);
-        draw_rectangle((maddy.x + maddy.hitbox.x) as f32 * SCALE, (maddy.y + maddy.hitbox.y) as f32 * SCALE, (maddy.hitbox.w) as f32 * SCALE, (maddy.hitbox.h) as f32 * SCALE, RED);
+        let offset = screen_width() / 2. - maddy.x as f32 * SCALE;
+        draw_rectangle(offset + 32. * SCALE, 96. * SCALE, f32::MAX, 96. * SCALE, BLACK);
+        draw_rectangle(offset + 32. * SCALE, 144. * SCALE, 64. * SCALE, 48. * SCALE, GRAY);
+        draw_rectangle(screen_width() / 2., (maddy.y + maddy.hitbox.y) as f32 * SCALE, (maddy.hitbox.w) as f32 * SCALE, (maddy.hitbox.h) as f32 * SCALE, RED);
         for (i, node) in maddy.hair.iter().enumerate() {
             let size = if i > 2 { 1. } else { 2. };
-            draw_circle(node.x * SCALE, node.y * SCALE, size * SCALE, PINK)
+            draw_circle(offset + node.x * SCALE, node.y * SCALE, size * SCALE, PINK)
         }
         
         draw_text(&format!("{:08b}", keyflags), 0., 10. * SCALE, 8. * SCALE, BLUE);

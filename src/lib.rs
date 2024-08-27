@@ -243,6 +243,7 @@ impl Maddy {
         {
             // superdash
             self.dash_time = 0.;
+            self.dash_effect_time = 0.;
             self.jump_buffer = 0.;
             self.jump_grace = 0.;
             self.play(1);
@@ -262,6 +263,7 @@ impl Maddy {
             && wall_direction != 0.
         {
             // wall bounce
+            self.dash_time = 0.;
             self.dash_effect_time = 0.;
             self.jump_buffer = 0.;
             self.play(2);
