@@ -61,6 +61,7 @@ impl core::fmt::Debug for Vector2 {
 }
 
 impl Vector2 {
+    #[no_mangle]
     pub const extern "C" fn new(x: f32, y: f32) -> Self {
         Vector2 { x, y }
     }
@@ -119,6 +120,7 @@ fn approach(value: f32, target: f32, amount: f32) -> f32 {
 }
 
 impl Maddy {
+    #[no_mangle]
     pub const extern "C" fn new() -> Self {
         Self {
             solid_callback: None,
@@ -168,6 +170,7 @@ impl Maddy {
         )
     }
 
+    #[no_mangle]
     pub extern "C" fn tick(&mut self, keys: u8) {
         let input_x = 
             if pressed!(keys[RIGHT]) { 1 }
