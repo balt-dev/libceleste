@@ -1,5 +1,6 @@
+[lib]
+crate-type = ["cdylib"]
 panic = "abort"
-lib.crate-type = ["cdylib"]
 
 [package]
 name = "libceleste"
@@ -11,6 +12,3 @@ libm = "0.2"
 
 [dev-dependencies]
 macroquad = "0.4"
-
-[workspace]
-members = ["examples/*"]

@@ -3,3 +3,8 @@
 
 rustc-ice*
 classic.lua
+
+Cargo.lock
+*.h
+demo/*.dll
+demo/*.lib
