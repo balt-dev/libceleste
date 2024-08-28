@@ -7,3 +7,5 @@ classic.lua
 Cargo.lock
 *.h
 demo/
+
+src/assets/atlas.rgba

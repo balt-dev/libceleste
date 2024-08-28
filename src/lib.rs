@@ -1,15 +1,54 @@
+#![warn(clippy::perf, missing_docs, clippy::pedantic)]
 #![crate_type = "cdylib"]
+#![no_std]
 
-use core::f32;
-use std::mem::MaybeUninit;
+//! A crate to let you put Madeline from Celeste (Classic) in anything you want!
 
+extern crate alloc;
+use libc_alloc::LibcAlloc;
+
+#[global_allocator]
+static ALLOC: LibcAlloc = LibcAlloc;
+
+use core::{f32, panic::PanicInfo};
+use alloc::boxed::Box;
+
+/// Bitflag for the left key being held down.
 pub const KEYFLAG_LEFT:  u8 = 0b1000_0000;
+/// Bitflag for the up key being held down.
 pub const KEYFLAG_UP:    u8 = 0b0100_0000;
+/// Bitflag for the down key being held down.
 pub const KEYFLAG_DOWN:  u8 = 0b0010_0000;
+/// Bitflag for the right key being held down.
 pub const KEYFLAG_RIGHT: u8 = 0b0001_0000;
+/// Bitflag for the dash key being held down.
 pub const KEYFLAG_DASH:  u8 = 0b0000_0010;
+/// Bitflag for the jump key being held down.
 pub const KEYFLAG_JUMP:  u8 = 0b0000_0001;
 
+
+/// An array of RGBA images stored as raw RGBA bytes.
+/// 
+/// The images are guaranteed to be 8 pixels wide, 
+/// 8 pixels tall, have 4 channels, and have 8 bits per channel. 
+/// 
+/// This should be used along with Maddy.sprite in order to draw the player.
+/// 
+/// Note that:
+/// - The hair sprites are stored separate, at Maddy.sprite + 8
+/// - The circles used to draw the hair nodes are at:
+///   - Index 0 for size 1 circles (index into hair > 2)
+///   - Index 1 for size 2 circles (index into hair <= 2)
+
+// size 2? ultrakill reference?
+// also 256 == 8 * 8 * 4 but cbindgen can't handle const expressions yet
+#[no_mangle]
+pub static SPRITES: [[u8; 256]; 16] = {
+    let atlas = *include_bytes!("assets/atlas.rgba");
+    unsafe {
+        core::mem::transmute::<[u8; 64 * 16 * 4], [[u8; 8 * 8 * 4]; 16]>(atlas)
+    }
+};
 
 mod consts {
     pub(crate) const HAIR_COUNT: usize = 5;
@@ -39,6 +78,11 @@ mod consts {
 
     pub(crate) const HAIR_EASING_FACTOR: f32 = 1.1;
     pub(crate) const FPS: f32 = 30.;
+
+    pub(crate) const HAIR_ZERO_DASHES: [u8; 4] = [0x29, 0xad, 0xff, 0xff];
+    pub(crate) const HAIR_ONE_DASH:    [u8; 4] = [0xff, 0x00, 0x4d, 0xFF];
+    pub(crate) const HAIR_TWO_DASHES:  [u8; 4] = [0x00, 0xe4, 0x36, 0xFF];
+    pub(crate) const HAIR_WHITE:       [u8; 4] = [0xff, 0xf1, 0xe8, 0xff];
 }
 
 use consts::*;
@@ -51,8 +95,11 @@ macro_rules! pressed {
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Default)]
+/// A 2-dimensional vector.
 pub struct Vector2 {
+    /// The vector's X component.
     pub x: f32,
+    /// The vector's Y component.
     pub y: f32
 }
 
@@ -63,24 +110,23 @@ impl core::fmt::Debug for Vector2 {
 }
 
 impl Vector2 {
-    pub const fn new(x: f32, y: f32) -> Self {
+    pub(crate) const fn new(x: f32, y: f32) -> Self {
         Vector2 { x, y }
     }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Default)]
+/// A rectangle hitbox used for the player.
 pub struct Hitbox {
+    /// The hitbox's X offset.
     pub x: i32,
+    /// The hitbox's Y offset.
     pub y: i32,
+    /// The hitbox's width.
     pub w: i32,
+    /// The hitbox's height.
     pub h: i32
-}
-
-impl Hitbox {
-    pub const fn new(x: i32, y: i32, w: i32, h: i32) -> Self {
-        Self { x, y, w, h }
-    }
 }
 
 impl core::fmt::Debug for Hitbox {
@@ -89,9 +135,12 @@ impl core::fmt::Debug for Hitbox {
     }
 }
 
-
 #[repr(C)]
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[allow(missing_docs)]
+/// An instance of Madeline.
+/// 
+/// Note that her position is stored with Y going down as opposed to up.
 pub struct Maddy {
     /// Callback for collision. Takes the X and Y to check, as well as the X and Y of the direction that's being checked, and returns a boolean.
     pub solid_callback: Option<extern "C" fn(*mut Self, i32, i32, i32, i32) -> bool>,
@@ -116,7 +165,8 @@ pub struct Maddy {
     pub was_on_ground: bool,
     pub flip_x: bool,
     pub jump_last_tick: bool,
-    pub dash_last_tick: bool
+    pub dash_last_tick: bool,
+    pub time_elapsed: f32
 }
 
 fn approach(value: f32, target: f32, amount: f32) -> f32 {
@@ -158,7 +208,8 @@ impl Maddy {
             hair: [Vector2::new(0., 0.); HAIR_COUNT],
             jump_buffer: 0.,
             jump_last_tick: false,
-            dash_last_tick: false
+            dash_last_tick: false,
+            time_elapsed: 0.
         };
         Box::into_raw(Box::new(this))
     }
@@ -186,8 +237,10 @@ impl Maddy {
     }
 
     #[no_mangle]
-    /// Ticks this instance of Madeline according to the currently pressed keys and the delta-time.
+        /// Ticks this instance of Madeline according to the currently pressed keys and the delta-time.
     pub extern "C" fn CLST_Tick(&mut self, keys: u8, delta_time: f32) {
+        self.time_elapsed += delta_time;
+
         let delta_ticks = delta_time * FPS;
 
         let input_x = 
@@ -414,10 +467,32 @@ impl Maddy {
     }
 
     #[no_mangle]
-    /// Safely frees the memory allocated by CLST_Init.
+        /// Safely frees the memory allocated by CLST_Init.
     pub unsafe extern "C" fn CLST_Drop(this: *mut Self) {
         core::mem::drop(
             Box::from_raw(this)
         )
+    }
+
+    #[no_mangle]
+        /// Returns the expected hair color for the amount of dashes Madeline has.
+    pub unsafe extern "C" fn CLST_HairColor(&self, disable_flashing: bool) -> *const [u8; 4] {
+        if self.dash_effect_time > 0. && !disable_flashing {
+            return &HAIR_WHITE;
+        }
+        & match self.dashes {
+            0 => HAIR_ZERO_DASHES,
+            1 => HAIR_ONE_DASH,
+            _ if self.time_elapsed % 0.2 >= 0.1 && !disable_flashing => HAIR_WHITE,
+            _ => HAIR_TWO_DASHES
+        }
+    }
+}
+
+
+#[panic_handler]
+fn panic_handler(_: &PanicInfo<'_>) -> ! {
+    unsafe {
+        libc::exit(127)
     }
 }
