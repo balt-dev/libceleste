@@ -1,6 +1,7 @@
 #![crate_type = "cdylib"]
 
 use core::f32;
+use std::mem::MaybeUninit;
 
 pub const KEYFLAG_LEFT:  u8 = 0b1000_0000;
 pub const KEYFLAG_UP:    u8 = 0b0100_0000;
@@ -128,8 +129,13 @@ fn approach(value: f32, target: f32, amount: f32) -> f32 {
 
 impl Maddy {
     #[no_mangle]
-    pub const extern "C" fn CLST_init() -> Self {
-        Self {
+    /*
+        Initializes a new instance of Madeline on the heap.
+        DO *NOT* FREE THIS POINTER.
+        Instead, pass the pointer to CLST_Drop.
+     */
+    pub extern "C" fn CLST_Init() -> *mut Self {
+        let this = Self {
             solid_callback: None,
             audio_callback: None,
             x: 0,
@@ -152,7 +158,8 @@ impl Maddy {
             jump_buffer: 0.,
             jump_last_tick: false,
             dash_last_tick: false
-        }
+        };
+        Box::into_raw(Box::new(this))
     }
 
     fn play(&self, sound_index: u8) {
@@ -178,7 +185,8 @@ impl Maddy {
     }
 
     #[no_mangle]
-    pub extern "C" fn CLST_tick(&mut self, keys: u8, delta_time: f32) {
+    /// Ticks this instance of Madeline according to the currently pressed keys and the delta-time.
+    pub extern "C" fn CLST_Tick(&mut self, keys: u8, delta_time: f32) {
         let delta_ticks = delta_time * FPS;
 
         let input_x = 
@@ -402,5 +410,13 @@ impl Maddy {
             node.y += (last.y + 0.5 - node.y) / HAIR_EASING_FACTOR * delta_ticks;
             last = *node;
         }
+    }
+
+    #[no_mangle]
+    /// Safely frees the memory allocated by CLST_Init.
+    pub unsafe extern "C" fn CLST_Drop(this: *mut Self) {
+        core::mem::drop(
+            Box::from_raw(this)
+        )
     }
 }
