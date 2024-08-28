@@ -1,6 +1,5 @@
 [lib]
 crate-type = ["cdylib"]
-panic = "abort"
 
 [package]
 name = "libceleste"
@@ -12,3 +11,6 @@ libm = "0.2"
 
 [dev-dependencies]
 macroquad = "0.4"
+
+[profile.release]
+panic = "abort"

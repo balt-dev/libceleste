@@ -2,43 +2,42 @@
 
 use core::f32;
 
-pub mod consts {
-    pub const LEFT:  u8 = 0b1000_0000;
-    pub const UP:    u8 = 0b0100_0000;
-    pub const DOWN:  u8 = 0b0010_0000;
-    pub const RIGHT: u8 = 0b0001_0000;
+pub const KEYFLAG_LEFT:  u8 = 0b1000_0000;
+pub const KEYFLAG_UP:    u8 = 0b0100_0000;
+pub const KEYFLAG_DOWN:  u8 = 0b0010_0000;
+pub const KEYFLAG_RIGHT: u8 = 0b0001_0000;
+pub const KEYFLAG_DASH:  u8 = 0b0000_0010;
+pub const KEYFLAG_JUMP:  u8 = 0b0000_0001;
 
 
-    pub const DASH:  u8 = 0b0000_0010;
-    pub const JUMP:  u8 = 0b0000_0001;
+mod consts {
+    pub(crate) const HAIR_COUNT: usize = 5;
+    pub(crate) const JUMP_GRACE_TIME: f32 = 6.;
+    pub(crate) const JUMP_BUFFER_TIME: f32 = 4.;
+    pub(crate) const PLAYER_HITBOX: crate::Hitbox = crate::Hitbox { x: 1, y: 3, w: 6, h: 5 };
 
-    pub const HAIR_COUNT: usize = 5;
-    pub const JUMP_GRACE_TIME: f32 = 6.;
-    pub const JUMP_BUFFER_TIME: f32 = 4.;
-    pub const PLAYER_HITBOX: crate::Hitbox = crate::Hitbox { x: 1, y: 3, w: 6, h: 5 };
+    pub(crate) const MAX_SPEED: f32 = 1.;
+    pub(crate) const WALL_JUMP_SPEED: f32 = 2.;
+    pub(crate) const GROUND_ACCEL: f32 = 0.6;
+    pub(crate) const AIR_ACCEL: f32 = 0.6;
+    pub(crate) const DECEL: f32 = 0.15;
+    pub(crate) const MAX_FALL: f32 = 2.;
+    pub(crate) const MAX_FALL_SLIDE: f32 = 0.6;
+    pub(crate) const GRAVITY: f32 = 0.21;
+    pub(crate) const HALF_GRAVITY_THRESHOLD: f32 = 0.15;
+    pub(crate) const JUMP_SPEED: f32 = -2.;
 
-    pub const MAX_SPEED: f32 = 1.;
-    pub const WALL_JUMP_SPEED: f32 = 2.;
-    pub const GROUND_ACCEL: f32 = 0.6;
-    pub const AIR_ACCEL: f32 = 0.6;
-    pub const DECEL: f32 = 0.15;
-    pub const MAX_FALL: f32 = 2.;
-    pub const MAX_FALL_SLIDE: f32 = 0.6;
-    pub const GRAVITY: f32 = 0.21;
-    pub const HALF_GRAVITY_THRESHOLD: f32 = 0.15;
-    pub const JUMP_SPEED: f32 = -2.;
+    pub(crate) const DASH_SPEED: f32 = 5.;
+    pub(crate) const DASH_TIME: f32 = 4.;
+    pub(crate) const DASH_EFFECT_TIME: f32 = 10.;
+    pub(crate) const DASH_TARGET: f32 = 2.;
+    pub(crate) const DASH_ACCEL: f32 = 1.5;
+    pub(crate) const DASH_UPWARDS_MUL: f32 = 0.75;
 
-    pub const DASH_SPEED: f32 = 5.;
-    pub const DASH_TIME: f32 = 4.;
-    pub const DASH_EFFECT_TIME: f32 = 10.;
-    pub const DASH_TARGET: f32 = 2.;
-    pub const DASH_ACCEL: f32 = 1.5;
-    pub const DASH_UPWARDS_MUL: f32 = 0.75;
+    pub(crate) const WALL_JUMP_CHECK_DISTANCE: i32 = 3;
 
-    pub const WALL_JUMP_CHECK_DISTANCE: i32 = 3;
-
-    pub const HAIR_EASING_FACTOR: f32 = 1.1;
-    pub const FPS: f32 = 30.;
+    pub(crate) const HAIR_EASING_FACTOR: f32 = 1.1;
+    pub(crate) const FPS: f32 = 30.;
 }
 
 use consts::*;
@@ -95,6 +94,7 @@ impl core::fmt::Debug for Hitbox {
 pub struct Maddy {
     /// Callback for collision. Takes the X and Y to check, as well as the X and Y of the direction that's being checked, and returns a boolean.
     pub solid_callback: Option<extern "C" fn(*mut Self, i32, i32, i32, i32) -> bool>,
+    /// Callback for audio. Takes the ID of audio to play. You might not need this.
     pub audio_callback: Option<extern "C" fn(u8)>,
     pub hitbox: Hitbox,
     pub hair: [Vector2; 5],
@@ -128,7 +128,7 @@ fn approach(value: f32, target: f32, amount: f32) -> f32 {
 
 impl Maddy {
     #[no_mangle]
-    pub const extern "C" fn init_madeline() -> Self {
+    pub const extern "C" fn CLST_init() -> Self {
         Self {
             solid_callback: None,
             audio_callback: None,
@@ -178,22 +178,22 @@ impl Maddy {
     }
 
     #[no_mangle]
-    pub extern "C" fn tick(&mut self, keys: u8, delta_time: f32) {
+    pub extern "C" fn CLST_tick(&mut self, keys: u8, delta_time: f32) {
         let delta_ticks = delta_time * FPS;
 
         let input_x = 
-            if pressed!(keys[RIGHT]) { 1 }
-            else if pressed!(keys[LEFT]) { -1 }
+            if pressed!(keys[KEYFLAG_RIGHT]) { 1 }
+            else if pressed!(keys[KEYFLAG_LEFT]) { -1 }
             else { 0 };
         let input_y =
-            if pressed!(keys[UP]) { -1 }
-            else if pressed!(keys[DOWN]) { 1 }
+            if pressed!(keys[KEYFLAG_UP]) { -1 }
+            else if pressed!(keys[KEYFLAG_DOWN]) { 1 }
             else { 0 };
 
         let on_ground = self.is_solid(0, 1);
     
-        let jump = pressed!(keys[JUMP]) && !self.jump_last_tick;
-        self.jump_last_tick = pressed!(keys[JUMP]);
+        let jump = pressed!(keys[KEYFLAG_JUMP]) && !self.jump_last_tick;
+        self.jump_last_tick = pressed!(keys[KEYFLAG_JUMP]);
 
         if jump {
             self.jump_buffer = JUMP_BUFFER_TIME;
@@ -201,8 +201,8 @@ impl Maddy {
             self.jump_buffer -= delta_ticks;
         }
 
-        let dash = pressed!(keys[DASH]) && !self.dash_last_tick;
-        self.dash_last_tick = pressed!(keys[DASH]);
+        let dash = pressed!(keys[KEYFLAG_DASH]) && !self.dash_last_tick;
+        self.dash_last_tick = pressed!(keys[KEYFLAG_DASH]);
 
         if on_ground {
             self.jump_grace = JUMP_GRACE_TIME;
@@ -331,9 +331,9 @@ impl Maddy {
                 if self.is_solid(input_x, 0)
                     { 5 }
                     else { 3 }
-            } else if pressed!(keys[DOWN]) {
+            } else if pressed!(keys[KEYFLAG_DOWN]) {
                 6
-            } else if pressed!(keys[UP]) {
+            } else if pressed!(keys[KEYFLAG_UP]) {
                 7
             } else if self.speed.x == 0. || input_x == 0 {
                 1
@@ -383,7 +383,7 @@ impl Maddy {
         // There are so many magic numbers here that I can't decipher, sorry!
         let mut last = Vector2::new(
             self.x as f32 + 4. - libm::copysignf(2., facing),
-            self.y as f32 + if pressed!(keys[DOWN]) { 4. } else { 3. }
+            self.y as f32 + if pressed!(keys[KEYFLAG_DOWN]) { 4. } else { 3. }
         );
 
         for node in self.hair.iter_mut() {
