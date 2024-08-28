@@ -27,28 +27,19 @@ pub const KEYFLAG_DASH:  u8 = 0b0000_0010;
 pub const KEYFLAG_JUMP:  u8 = 0b0000_0001;
 
 
-/// An array of RGBA images stored as raw RGBA bytes.
+/// An array to RGBA image stored as raw RGBA bytes.
 /// 
-/// The images are guaranteed to be 8 pixels wide, 
-/// 8 pixels tall, have 4 channels, and have 8 bits per channel. 
+/// The image is a 64x16 sprite atlas of 16 8x8 sprites, stored with 8 bits per channel.
 /// 
-/// This should be used along with Maddy.sprite in order to draw the player.
+/// This should be used along with Maddy.sprite in order to draw the player and hair.
 /// 
 /// Note that:
 /// - The hair sprites are stored separate, at Maddy.sprite + 8
 /// - The circles used to draw the hair nodes are at:
 ///   - Index 0 for size 1 circles (index into hair > 2)
-///   - Index 1 for size 2 circles (index into hair <= 2)
-
-// size 2? ultrakill reference?
-// also 256 == 8 * 8 * 4 but cbindgen can't handle const expressions yet
+///   - Index 8 for size 2 circles (index into hair <= 2)
 #[no_mangle]
-pub static SPRITES: [[u8; 256]; 16] = {
-    let atlas = *include_bytes!("assets/atlas.rgba");
-    unsafe {
-        core::mem::transmute::<[u8; 64 * 16 * 4], [[u8; 8 * 8 * 4]; 16]>(atlas)
-    }
-};
+pub static ATLAS: [u8; 4096] = *include_bytes!("assets/atlas.rgba");
 
 mod consts {
     pub(crate) const HAIR_COUNT: usize = 5;
@@ -76,13 +67,13 @@ mod consts {
 
     pub(crate) const WALL_JUMP_CHECK_DISTANCE: i32 = 3;
 
-    pub(crate) const HAIR_EASING_FACTOR: f32 = 1.1;
+    pub(crate) const HAIR_EASING_FACTOR: f32 = 1.002;
     pub(crate) const FPS: f32 = 30.;
 
-    pub(crate) const HAIR_ZERO_DASHES: [u8; 4] = [0x29, 0xad, 0xff, 0xff];
-    pub(crate) const HAIR_ONE_DASH:    [u8; 4] = [0xff, 0x00, 0x4d, 0xFF];
-    pub(crate) const HAIR_TWO_DASHES:  [u8; 4] = [0x00, 0xe4, 0x36, 0xFF];
-    pub(crate) const HAIR_WHITE:       [u8; 4] = [0xff, 0xf1, 0xe8, 0xff];
+    pub(crate) const HAIR_ZERO_DASHES: crate::Color = crate::Color::new(0x29, 0xad, 0xff, 0xff);
+    pub(crate) const HAIR_ONE_DASH:    crate::Color = crate::Color::new(0xff, 0x00, 0x4d, 0xFF);
+    pub(crate) const HAIR_TWO_DASHES:  crate::Color = crate::Color::new(0x00, 0xe4, 0x36, 0xFF);
+    pub(crate) const HAIR_WHITE:       crate::Color = crate::Color::new(0xff, 0xf1, 0xe8, 0xff);
 }
 
 use consts::*;
@@ -112,6 +103,27 @@ impl core::fmt::Debug for Vector2 {
 impl Vector2 {
     pub(crate) const fn new(x: f32, y: f32) -> Self {
         Vector2 { x, y }
+    }
+}
+
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Default)]
+/// An RGBA color.
+pub struct Color {
+    /// Red channel.
+    pub r: u8,
+    /// Green channel.
+    pub g: u8,
+    /// Blue channel.
+    pub b: u8,
+    /// Alpha channel.
+    pub a: u8    
+}
+
+impl Color {
+    pub(crate) const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
     }
 }
 
@@ -476,11 +488,11 @@ impl Maddy {
 
     #[no_mangle]
         /// Returns the expected hair color for the amount of dashes Madeline has.
-    pub unsafe extern "C" fn CLST_HairColor(&self, disable_flashing: bool) -> *const [u8; 4] {
-        if self.dash_effect_time > 0. && !disable_flashing {
-            return &HAIR_WHITE;
+    pub unsafe extern "C" fn CLST_HairColor(&self, disable_flashing: bool) -> Color {
+        if self.dash_time > 0. && !disable_flashing {
+            return HAIR_WHITE;
         }
-        & match self.dashes {
+        match self.dashes {
             0 => HAIR_ZERO_DASHES,
             1 => HAIR_ONE_DASH,
             _ if self.time_elapsed % 0.2 >= 0.1 && !disable_flashing => HAIR_WHITE,

@@ -6,6 +6,9 @@ classic.lua
 
 Cargo.lock
 *.h
-demo/
+/demo/*
+!/demo/main.c
+!/demo/map.bmp
+!/demo/libceleste.h
 
 src/assets/atlas.rgba
