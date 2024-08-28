@@ -129,8 +129,9 @@ fn approach(value: f32, target: f32, amount: f32) -> f32 {
 
 impl Maddy {
     #[no_mangle]
-    /*
+    /**
         Initializes a new instance of Madeline on the heap.
+        
         DO *NOT* FREE THIS POINTER.
         Instead, pass the pointer to CLST_Drop.
      */
